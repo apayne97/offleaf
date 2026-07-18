@@ -1,0 +1,56 @@
+\documentclass[11pt]{article}
+
+% A clean starting point for a new manuscript. Everything here compiles with
+% OffLeaf's defaults (pdfLaTeX via latexmk). Replace the placeholder text and
+% go. Delete any packages you don't need.
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb}   % mathematics
+\usepackage{graphicx}           % \includegraphics
+\usepackage[numbers]{natbib}    % citations: \citep{key}, \citet{key}
+\usepackage{hyperref}           % clickable links and references
+
+\title{Your Title Here}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+One paragraph summarizing the problem, the approach, and the headline result.
+Aim for 150--250 words.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+State the problem and why it matters. Cite prior work like
+this~\citep{example2024}. Inline math works anywhere: $f(x) = x^2$.
+
+\section{Methods}
+\label{sec:methods}
+Describe what you did, precisely enough to reproduce. Display equations get
+numbers you can reference:
+\begin{equation}
+  \Delta G = -k_\mathrm{B} T \ln K,
+  \label{eq:deltaG}
+\end{equation}
+and you can refer back to Eq.~\eqref{eq:deltaG} or Section~\ref{sec:intro}.
+
+\section{Results}
+\label{sec:results}
+What you found. Figures go in a \texttt{figs/} folder next to this file:
+% \begin{figure}[htbp]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{figs/myplot.png}
+%   \caption{What the figure shows.}
+%   \label{fig:myplot}
+% \end{figure}
+
+\section{Discussion}
+\label{sec:discussion}
+What it means, limitations, and what comes next.
+
+\bibliographystyle{unsrtnat}
+\bibliography{refs}
+
+\end{document}

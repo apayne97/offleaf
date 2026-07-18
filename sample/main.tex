@@ -1,0 +1,69 @@
+\documentclass[11pt]{article}
+
+% --- A deliberately math- and bibliography-heavy sample so OffLeaf's compile,
+% --- SyncTeX, and word-count paths are exercised the way a real manuscript would.
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage[numbers]{natbib}
+\usepackage{hyperref}
+
+\title{Conformational Free-Energy Landscapes from Molecular Dynamics}
+\author{Sukrit Singh}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We illustrate a minimal offline LaTeX workflow by estimating the potential of mean
+force (PMF) along a collective variable from molecular dynamics trajectories. This
+sample manuscript exercises inline and display mathematics, citations, and floats so
+that the editor's compilation, SyncTeX, and word-count features can be validated.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+The free-energy difference between two conformational states $A$ and $B$ is central to
+interpreting molecular simulations~\citep{kollman1993}. Given a probability density
+$p(\xi)$ along a collective variable $\xi$, the potential of mean force is
+\begin{equation}
+  W(\xi) = -k_\mathrm{B} T \, \ln p(\xi) + C,
+  \label{eq:pmf}
+\end{equation}
+where $k_\mathrm{B}$ is the Boltzmann constant, $T$ the temperature, and $C$ an
+arbitrary additive constant.
+
+\section{Theory}
+\label{sec:theory}
+Sampling near a barrier is enhanced by biasing potentials. For umbrella sampling with a
+harmonic restraint of stiffness $k$ centered at $\xi_0$,
+\begin{equation}
+  V_\mathrm{bias}(\xi) = \tfrac{1}{2} k \, (\xi - \xi_0)^2 .
+  \label{eq:umbrella}
+\end{equation}
+The weighted histogram analysis method (WHAM) recombines biased histograms to recover the
+unbiased $p(\xi)$ and hence $W(\xi)$ from Eq.~\eqref{eq:pmf}~\citep{kumar1992}. A typical
+barrier of $\SI{12}{\kilo\joule\per\mole}$ corresponds to roughly $5\,k_\mathrm{B}T$ at
+$\SI{300}{\kelvin}$.
+
+\section{Methods}
+\label{sec:methods}
+Simulations were propagated with a \SI{2}{\femto\second} timestep. Each umbrella window was
+sampled for \SI{20}{\nano\second}, discarding the first \SI{2}{\nano\second} as equilibration.
+
+\section{Results and Discussion}
+\label{sec:results}
+The reconstructed landscape shows two minima separated by the barrier described above.
+Convergence was assessed by block averaging across independent replicas.
+
+\section{Conclusion}
+\label{sec:conclusion}
+A fully offline editor is sufficient for drafting, compiling, and reviewing quantitative
+manuscripts of this kind.
+
+\bibliographystyle{unsrtnat}
+\bibliography{refs}
+
+\end{document}

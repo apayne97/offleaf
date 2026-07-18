@@ -1,0 +1,21 @@
+\documentclass[11pt]{article}
+% Base-package fixture for OffLeaf's automated compile test. Uses only packages
+% present in a minimal TeX Live so the pipeline (latexmk + bibtex + synctex) can
+% be verified anywhere. The richer sample/ project showcases siunitx etc.
+\usepackage{amsmath,amssymb}
+\usepackage[numbers]{natbib}
+\usepackage{hyperref}
+\title{PMF from MD (base-package fixture)}
+\author{Sukrit Singh}
+\begin{document}
+\maketitle
+\section{Introduction}\label{sec:intro}
+The potential of mean force is $W(\xi) = -k_\mathrm{B}T\ln p(\xi) + C$~\citep{kumar1992}.
+\begin{equation}\label{eq:umbrella}
+V_\mathrm{bias}(\xi)=\tfrac12 k (\xi-\xi_0)^2.
+\end{equation}
+\section{Methods}\label{sec:methods}
+See Eq.~\eqref{eq:umbrella} and Section~\ref{sec:intro}.
+\bibliographystyle{plainnat}
+\bibliography{refs}
+\end{document}
