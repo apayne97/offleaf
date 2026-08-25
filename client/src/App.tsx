@@ -21,6 +21,7 @@ import { api, OffLeafSocket } from "./api";
 import SplitPane from "./components/SplitPane";
 import FileTree from "./components/FileTree";
 import Outline from "./components/Outline";
+import DocTabs from "./components/DocTabs";
 import Editor, { type EditorHandle, type EditorDiagnostic } from "./editor/Editor";
 import PdfView, { type PdfHandle } from "./preview/PdfView";
 import VisualView from "./visual/VisualView";
@@ -31,14 +32,34 @@ import { harvestKeys } from "./editor/latex";
 
 type Status = CompileState | "idle";
 
+/** Basename without the .tex extension, e.g. "si_figures.tex" -> "si_figures". */
+const baseNoExt = (file: string): string => file.replace(/\.tex$/, "");
+
+/**
+ * One PDF preview tab = one compiled document. Each tracks its own compile
+ * state/log/PDF independently, so switching tabs shows the last thing that
+ * document compiled to without needing to recompile it.
+ */
+interface DocTab {
+  file: string;
+  label: string;
+  status: Status;
+  logs: LogEntry[];
+  pdfUrl: string | null;
+  jobId: string | null;
+}
+
 export default function App() {
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [activePath, setActivePath] = useState("");
   const [content, setContent] = useState("");
   const [engine, setEngine] = useState<LatexEngine>("pdflatex");
-  const [status, setStatus] = useState<Status>("idle");
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<DocTab[]>([]);
+  const [activeTab, setActiveTab] = useState(0);
+  const activeDoc = tabs[activeTab] as DocTab | undefined;
+  const status: Status = activeDoc?.status ?? "idle";
+  const logs: LogEntry[] = activeDoc?.logs ?? [];
+  const pdfUrl: string | null = activeDoc?.pdfUrl ?? null;
   /** What the middle pane shows; the PDF stays on the right regardless. */
   const [leftView, setLeftView] = useState<"code" | "visual">("code");
   const [showReadAloud, setShowReadAloud] = useState(false);
@@ -69,7 +90,10 @@ export default function App() {
   projectRef.current = project;
   const cursorRef = useRef(cursor);
   cursorRef.current = cursor;
-  const jobRef = useRef<string | null>(null);
+  const tabsRef = useRef<DocTab[]>([]);
+  tabsRef.current = tabs;
+  const activeTabRef = useRef(0);
+  activeTabRef.current = activeTab;
 
   const isTex = activePath.endsWith(".tex");
   const source = isTex ? content : "";
@@ -100,6 +124,10 @@ export default function App() {
       const proj = await api.getProject();
       setProject(proj);
       setEngine(proj.engine);
+      setTabs([
+        { file: proj.mainFile, label: baseNoExt(proj.mainFile), status: "idle", logs: [], pdfUrl: null, jobId: null },
+      ]);
+      setActiveTab(0);
       await openFile(proj.mainFile);
       refreshDocCount(proj.mainFile);
       harvestProjectKeys(proj);
@@ -116,17 +144,37 @@ export default function App() {
 
   const handlerRef = useRef<(msg: ServerMessage) => void>(() => {});
   handlerRef.current = (msg: ServerMessage) => {
+    if (msg.type !== "compile:status" && msg.type !== "compile:log" && msg.type !== "compile:done") return;
+    // Every compile message carries its jobId; route it to whichever tab
+    // started that job (it may not be the currently active one).
+    const jobId = msg.type === "compile:done" ? msg.result.jobId : msg.jobId;
+    const idx = tabsRef.current.findIndex((t) => t.jobId === jobId);
+    if (idx === -1) return;
     if (msg.type === "compile:status") {
-      setStatus(msg.state);
+      setTabs((prev) => prev.map((t, i) => (i === idx ? { ...t, status: msg.state } : t)));
     } else if (msg.type === "compile:log") {
-      setLogs((prev) => [...prev.slice(-500), msg.entry]);
+      setTabs((prev) =>
+        prev.map((t, i) => (i === idx ? { ...t, logs: [...t.logs.slice(-500), msg.entry] } : t)),
+      );
     } else if (msg.type === "compile:done") {
-      setStatus(msg.result.state);
-      setLogs([...msg.result.errors, ...msg.result.warnings]);
-      jobRef.current = null;
-      if (msg.result.pdfUrl) setPdfUrl(msg.result.pdfUrl);
-      // Collapse the log panel automatically on a clean compile.
-      if (msg.result.errors.length === 0 && msg.result.warnings.length === 0) setShowLogs(false);
+      setTabs((prev) =>
+        prev.map((t, i) =>
+          i === idx
+            ? {
+                ...t,
+                status: msg.result.state,
+                logs: [...msg.result.errors, ...msg.result.warnings],
+                jobId: null,
+                pdfUrl: msg.result.pdfUrl ?? t.pdfUrl,
+              }
+            : t,
+        ),
+      );
+      // Collapse the log panel automatically on a clean compile of the tab
+      // you're actually looking at (a background tab finishing shouldn't).
+      if (idx === activeTabRef.current && msg.result.errors.length === 0 && msg.result.warnings.length === 0) {
+        setShowLogs(false);
+      }
       const main = projectRef.current?.mainFile;
       if (main) refreshDocCount(main);
     }
@@ -185,32 +233,61 @@ export default function App() {
   };
 
   const recompile = async (cleanBuild: boolean) => {
-    if (!project || status === "running" || status === "queued") return;
+    const tab = tabs[activeTab];
+    if (!project || !tab || tab.status === "running" || tab.status === "queued") return;
     if (activePath) await api.saveFile(activePath, content).catch(() => {});
-    setLogs([]);
-    setStatus("queued");
+    setTabs((prev) => prev.map((t, i) => (i === activeTab ? { ...t, logs: [], status: "queued" } : t)));
     setShowLogs(true);
     try {
-      const { jobId } = await api.compile({ mainFile: project.mainFile, engine, cleanBuild });
-      jobRef.current = jobId;
+      const { jobId } = await api.compile({ mainFile: tab.file, engine, cleanBuild });
+      setTabs((prev) => prev.map((t, i) => (i === activeTab ? { ...t, jobId } : t)));
     } catch (e) {
-      setStatus("error");
-      setLogs([{ severity: "error", message: String(e) }]);
+      setTabs((prev) =>
+        prev.map((t, i) =>
+          i === activeTab ? { ...t, status: "error", logs: [{ severity: "error", message: String(e) }] } : t,
+        ),
+      );
     }
   };
 
   const stopCompile = () => {
-    if (jobRef.current) api.stopCompile(jobRef.current).catch(() => {});
+    const jobId = tabs[activeTab]?.jobId;
+    if (jobId) api.stopCompile(jobId).catch(() => {});
+  };
+
+  const addTab = (file: string) => {
+    setTabs((prev) => [
+      ...prev,
+      { file, label: baseNoExt(file), status: "idle" as Status, logs: [], pdfUrl: null, jobId: null },
+    ]);
+    setActiveTab(tabs.length);
+  };
+
+  const closeTab = (i: number) => {
+    if (tabs.length <= 1) return;
+    setTabs((prev) => prev.filter((_, idx) => idx !== i));
+    setActiveTab((prev) => {
+      if (i < prev) return prev - 1;
+      if (i === prev) return Math.min(prev, tabs.length - 2);
+      return prev;
+    });
   };
 
   const forwardSync = async () => {
     if (!project) return;
-    const res = await api.syncForward(activePath || project.mainFile, cursor.line, cursor.col);
+    const tab = tabs[activeTab];
+    const res = await api.syncForward(
+      activePath || project.mainFile,
+      cursor.line,
+      cursor.col,
+      tab ? baseNoExt(tab.file) : undefined,
+    );
     if (res) pdfRef.current?.highlight(res.page, res.x, res.y);
   };
 
   const inverseSync = async (page: number, x: number, y: number) => {
-    const res = await api.syncInverse(page, x, y);
+    const tab = tabs[activeTab];
+    const res = await api.syncInverse(page, x, y, tab ? baseNoExt(tab.file) : undefined);
     if (!res) return;
     setLeftView("code");
     if (res.file !== activePath) await openFile(res.file).catch(() => {});
@@ -246,15 +323,15 @@ export default function App() {
 
   // Compile diagnostics for the file open in the editor (gutter + squiggles).
   const diagnostics = useMemo<EditorDiagnostic[]>(() => {
-    const main = project?.mainFile;
+    const tabFile = tabs[activeTab]?.file;
     return logs
-      .filter((l) => l.line !== undefined && (l.file ? l.file === activePath : activePath === main))
+      .filter((l) => l.line !== undefined && (l.file ? l.file === activePath : activePath === tabFile))
       .map((l) => ({
         line: l.line as number,
         severity: l.severity === "error" ? "error" as const : "warning" as const,
         message: l.message,
       }));
-  }, [logs, activePath, project]);
+  }, [logs, activePath, tabs, activeTab]);
 
   const onLogClick = async (l: LogEntry) => {
     if (!l.line) return;
@@ -307,7 +384,12 @@ export default function App() {
           {displayTitle}
         </div>
         <button onClick={showOpenDialog} title="Open another project folder in a new tab">📂 Open…</button>
-        <button className="primary" onClick={() => recompile(false)} disabled={compiling} title="Save & compile (⌘S / ⌘↵)">
+        <button
+          className="primary"
+          onClick={() => recompile(false)}
+          disabled={compiling}
+          title={`Save & compile ${activeDoc?.label ?? ""} (⌘S / ⌘↵)`}
+        >
           {compiling ? "Compiling…" : "▶ Recompile"}
         </button>
         {compiling && (
@@ -410,7 +492,20 @@ export default function App() {
               }
               second={
                 <div className="preview-col">
-                  <PdfView ref={pdfRef} url={pdfUrl} onInverse={inverseSync} />
+                  <DocTabs
+                    tabs={tabs.map((t) => ({ file: t.file, label: t.label, status: t.status }))}
+                    activeIndex={activeTab}
+                    addable={(project?.documents ?? []).filter((d) => !tabs.some((t) => t.file === d))}
+                    onSelect={setActiveTab}
+                    onClose={closeTab}
+                    onAdd={addTab}
+                  />
+                  {/* Remount per tab: a stale-doc bug otherwise leaves the
+                      previous tab's rendered pages on screen when switching
+                      to a tab with no PDF yet. Each tab gets its own
+                      independent zoom/scroll state as a side effect, which
+                      is arguably more correct than sharing one. */}
+                  <PdfView key={activeDoc?.file ?? "none"} ref={pdfRef} url={pdfUrl} onInverse={inverseSync} />
                 </div>
               }
             />

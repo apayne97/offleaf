@@ -60,17 +60,32 @@ function pidOf(req: { query?: unknown; body?: unknown }): string {
   return q || b || "";
 }
 
-/** Find the main .tex file: prefer main.tex, else the first file with \documentclass. */
-async function detectMainFile(projectId: string): Promise<string> {
+/**
+ * Root-level .tex files that look like standalone documents: main.tex by
+ * convention, or anything with \documentclass (e.g. a main manuscript plus a
+ * separately-compiled si_figures.tex). Falls back to every .tex file in the
+ * root when none qualify, so an empty/unusual project still offers something.
+ */
+async function listTexDocuments(projectId: string): Promise<string[]> {
   const root = projectRoot(projectId);
   const entries = await fsp.readdir(root, { withFileTypes: true });
   const texFiles = entries.filter((e) => e.isFile() && e.name.endsWith(".tex")).map((e) => e.name);
-  if (texFiles.includes("main.tex")) return "main.tex";
+  const docs: string[] = [];
   for (const name of texFiles) {
+    if (name === "main.tex") {
+      docs.push(name);
+      continue;
+    }
     const content = await fsp.readFile(path.join(root, name), "utf8").catch(() => "");
-    if (/\\documentclass/.test(content)) return name;
+    if (/\\documentclass/.test(content)) docs.push(name);
   }
-  return texFiles[0] ?? "main.tex";
+  return docs.length > 0 ? docs : texFiles;
+}
+
+/** Find the main .tex file: prefer main.tex, else the first standalone document. */
+async function detectMainFile(projectId: string): Promise<string> {
+  const docs = await listTexDocuments(projectId);
+  return docs.includes("main.tex") ? "main.tex" : (docs[0] ?? "main.tex");
 }
 
 // --------------------------------------------------------------------------
@@ -80,13 +95,15 @@ async function detectMainFile(projectId: string): Promise<string> {
 app.get("/api/project", async (req): Promise<ProjectInfo> => {
   const p = pidOf(req);
   const tree = await files.listTree(p);
+  const documents = await listTexDocuments(p);
   return {
     id: p,
     root: projectRoot(p),
     name: tree.name,
-    mainFile: await detectMainFile(p),
+    mainFile: documents.includes("main.tex") ? "main.tex" : (documents[0] ?? "main.tex"),
     engine: DEFAULT_ENGINE,
     texDistribution: detectTexDistribution(),
+    documents,
     tree,
   };
 });
@@ -155,8 +172,8 @@ app.post("/api/compile/stop", async (req) => {
 });
 
 app.get("/api/pdf", async (req, reply) => {
-  const { jobId } = req.query as { jobId?: string };
-  const abs = compiler.pdfAbsFor(jobId, pidOf(req));
+  const { jobId, doc } = req.query as { jobId?: string; doc?: string };
+  const abs = compiler.pdfAbsFor(jobId, pidOf(req), doc);
   if (!abs || !fs.existsSync(abs)) {
     reply.code(404);
     return { error: "No compiled PDF available" };
@@ -171,17 +188,17 @@ app.get("/api/pdf", async (req, reply) => {
 // --------------------------------------------------------------------------
 
 app.get("/api/synctex/forward", async (req) => {
-  const { file, line, col } = req.query as { file: string; line: string; col?: string };
+  const { file, line, col, doc } = req.query as { file: string; line: string; col?: string; doc?: string };
   const p = pidOf(req);
-  const pdfRel = compiler.pdfRelFor(undefined, p);
+  const pdfRel = compiler.pdfRelFor(undefined, p, doc);
   if (!pdfRel) return null;
   return forward(file, Number(line), Number(col ?? 0), pdfRel, p);
 });
 
 app.get("/api/synctex/inverse", async (req) => {
-  const { page, x, y } = req.query as { page: string; x: string; y: string };
+  const { page, x, y, doc } = req.query as { page: string; x: string; y: string; doc?: string };
   const p = pidOf(req);
-  const pdfRel = compiler.pdfRelFor(undefined, p);
+  const pdfRel = compiler.pdfRelFor(undefined, p, doc);
   if (!pdfRel) return null;
   return inverse(Number(page), Number(x), Number(y), pdfRel, p);
 });

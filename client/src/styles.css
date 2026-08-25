@@ -108,8 +108,32 @@ button, select, input { font-family: inherit; font-size: 12px; }
 .cm-host .cm-scroller { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; font-size: 13px; }
 
 /* ---------------- preview ---------------- */
-.preview-col { height: 100%; background: var(--bg); }
-.pdfview, .visualview { height: 100%; display: flex; flex-direction: column; }
+.preview-col { height: 100%; background: var(--bg); display: flex; flex-direction: column; }
+.pdfview { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.visualview { height: 100%; display: flex; flex-direction: column; }
+
+.doctabs { display: flex; align-items: center; gap: 2px; padding: 4px 6px 0; background: var(--bg-2); border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+.doctab {
+  display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: transparent;
+  border: 1px solid transparent; border-bottom: none; border-radius: 4px 4px 0 0; color: var(--text-dim);
+  font-size: 12px; cursor: pointer;
+}
+.doctab.on { background: var(--bg); color: var(--text); border-color: var(--border); }
+.doctab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex: 0 0 auto; }
+.doctab-dot.success { background: var(--ok); }
+.doctab-dot.error { background: var(--err); }
+.doctab-dot.running, .doctab-dot.queued { background: var(--warn); }
+.doctab-close { margin-left: 2px; color: var(--text-dim); }
+.doctab-close:hover { color: var(--text); }
+.doctab-add { position: relative; margin-left: 2px; }
+.doctab-add > button { background: transparent; border: 1px dashed var(--border); color: var(--text-dim); border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+.doctab-menu {
+  position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.3); min-width: 160px;
+  overflow: hidden;
+}
+.doctab-menu-item { display: block; width: 100%; text-align: left; padding: 6px 10px; background: transparent; border: none; color: var(--text); font-size: 12px; cursor: pointer; }
+.doctab-menu-item:hover { background: var(--bg-3); }
 .pdf-toolbar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--bg-2); border-bottom: 1px solid var(--border); }
 .pdf-toolbar button { background: var(--bg-3); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; cursor: pointer; }
 .pdf-toolbar .zoom { min-width: 42px; text-align: center; }
