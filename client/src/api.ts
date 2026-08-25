@@ -106,13 +106,25 @@ export const api = {
 
   pdfUrl: (jobId: string): string => withP(`/api/pdf?jobId=${encodeURIComponent(jobId)}`),
 
-  syncForward: (file: string, line: number, col: number): Promise<SyncForwardResult | null> =>
-    fetch(withP(`/api/synctex/forward?file=${encodeURIComponent(file)}&line=${line}&col=${col}`)).then(
-      json<SyncForwardResult | null>,
-    ),
+  /**
+   * SyncTeX both directions take an optional `doc` — the target document's
+   * basename without extension (e.g. "si_figures") — so a project with
+   * several standalone documents (a main file plus an SI figures file, say)
+   * syncs against the PDF for the tab you're actually looking at, not
+   * whichever document happened to compile most recently.
+   */
+  syncForward: (file: string, line: number, col: number, doc?: string): Promise<SyncForwardResult | null> =>
+    fetch(
+      withP(
+        `/api/synctex/forward?file=${encodeURIComponent(file)}&line=${line}&col=${col}` +
+          (doc ? `&doc=${encodeURIComponent(doc)}` : ""),
+      ),
+    ).then(json<SyncForwardResult | null>),
 
-  syncInverse: (page: number, x: number, y: number): Promise<SyncInverseResult | null> =>
-    fetch(withP(`/api/synctex/inverse?page=${page}&x=${x}&y=${y}`)).then(json<SyncInverseResult | null>),
+  syncInverse: (page: number, x: number, y: number, doc?: string): Promise<SyncInverseResult | null> =>
+    fetch(
+      withP(`/api/synctex/inverse?page=${page}&x=${x}&y=${y}` + (doc ? `&doc=${encodeURIComponent(doc)}` : "")),
+    ).then(json<SyncInverseResult | null>),
 
   wordcountDoc: (path: string): Promise<WordCountResult & { engine: string }> =>
     fetch("/api/wordcount", {

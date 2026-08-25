@@ -43,14 +43,24 @@ type Emit = (msg: ServerMessage) => void;
 
 export class CompileService {
   private jobs = new Map<string, Job>();
-  /** Most recently produced PDF per project, used by /api/pdf and SyncTeX. */
+  /** Most recently produced PDF per project, used by /api/pdf and SyncTeX
+   *  when the caller doesn't care which document (single-document projects). */
   private latest = new Map<string, { jobId: string; baseName: string }>();
+  /** Most recently produced PDF per (project, baseName) — lets a project with
+   *  several standalone documents (e.g. main.tex + si_figures.tex, each its
+   *  own PDF preview tab) resolve each one's own latest build independently. */
+  private latestByDoc = new Map<string, { jobId: string; baseName: string }>();
 
-  /** Project-relative path to the PDF for a job (or a project's latest). */
-  pdfRelFor(jobId?: string, projectId = ""): string | null {
-    const base = jobId
-      ? this.jobs.get(jobId)?.baseName
-      : this.latest.get(projectId)?.baseName;
+  /**
+   * Project-relative path to the PDF for a job, or (without a jobId) the
+   * project's most recent PDF — for a specific document's basename (e.g.
+   * "si_figures") when given, otherwise whichever document compiled last.
+   */
+  pdfRelFor(jobId?: string, projectId = "", baseName?: string): string | null {
+    let base: string | undefined;
+    if (jobId) base = this.jobs.get(jobId)?.baseName;
+    else if (baseName) base = this.latestByDoc.get(`${projectId}::${baseName}`)?.baseName;
+    else base = this.latest.get(projectId)?.baseName;
     if (!base) return null;
     return `${BUILD_DIR}/${base}.pdf`;
   }
@@ -60,9 +70,9 @@ export class CompileService {
     return this.jobs.get(jobId)?.projectId;
   }
 
-  pdfAbsFor(jobId?: string, projectId = ""): string | null {
+  pdfAbsFor(jobId?: string, projectId = "", baseName?: string): string | null {
     const pid = jobId ? this.jobs.get(jobId)?.projectId ?? projectId : projectId;
-    const rel = this.pdfRelFor(jobId, pid);
+    const rel = this.pdfRelFor(jobId, pid, baseName);
     return rel ? safeResolve(rel, pid) : null;
   }
 
@@ -193,7 +203,10 @@ export class CompileService {
       });
     }
     if (!wasStopped) job.state = success ? "success" : "error";
-    if (pdfExists) this.latest.set(job.projectId, { jobId: job.jobId, baseName: job.baseName });
+    if (pdfExists) {
+      this.latest.set(job.projectId, { jobId: job.jobId, baseName: job.baseName });
+      this.latestByDoc.set(`${job.projectId}::${job.baseName}`, { jobId: job.jobId, baseName: job.baseName });
+    }
 
     const result: CompileResult = {
       jobId: job.jobId,

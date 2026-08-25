@@ -31,6 +31,12 @@ export interface ProjectInfo {
   /** Local TeX distribution banner, e.g. "TeX Live 2025" or "unknown". */
   texDistribution: string;
   tree: FileNode;
+  /**
+   * Root-level .tex files that look like standalone documents (main.tex by
+   * convention, or anything with \documentclass) — candidates for the PDF
+   * preview's "+" add-tab picker, e.g. a main manuscript plus si_figures.tex.
+   */
+  documents: string[];
 }
 
 export interface FileContents {
