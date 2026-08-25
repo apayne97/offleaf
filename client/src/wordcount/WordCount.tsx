@@ -10,9 +10,12 @@ import type { SelectionCountResult, WordCountResult } from "@offleaf/shared";
 export function WordCountBar({
   doc,
   selection,
+  label,
 }: {
   doc: (WordCountResult & { engine: string }) | null;
   selection: SelectionCountResult | null;
+  /** Which open document this count is for, e.g. "main" or "si_figures". */
+  label?: string;
 }) {
   if (selection && selection.words > 0) {
     return (
@@ -27,7 +30,7 @@ export function WordCountBar({
   if (doc) {
     return (
       <span className="wc-bar">
-        <b>Document:</b> {doc.total.wordsInText} words
+        <b>{label ? `${label}:` : "Document:"}</b> {doc.total.wordsInText} words
         <span className="muted"> · {doc.engine === "texcount" ? "texcount" : "estimate"}</span>
       </span>
     );
@@ -37,15 +40,19 @@ export function WordCountBar({
 
 export function WordCountPanel({
   result,
+  label,
   onClose,
 }: {
   result: (WordCountResult & { engine: string }) | null;
+  /** Which open document this count is for, e.g. "main" or "si_figures" —
+   *  the panel follows whichever PDF tab is active. */
+  label?: string;
   onClose(): void;
 }) {
   return (
     <div className="wc-panel">
       <div className="panel-title">
-        Word count
+        Word count{label ? <span className="muted"> — {label}</span> : null}
         <button className="link" onClick={onClose}>close</button>
       </div>
       {!result ? (

@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "tsx test/unit.test.ts && tsx test/api.test.ts && tsx test/compile.test.ts"
+    "test": "tsx test/unit.test.ts && tsx test/api.test.ts && tsx test/compile.test.ts && tsx test/wordcount.test.ts"
   },
   "dependencies": {
     "@fastify/static": "^7.0.4",

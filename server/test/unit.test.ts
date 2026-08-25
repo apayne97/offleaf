@@ -107,8 +107,10 @@ check("total words parsed", wc.total.wordsInText === 188);
 check("headers/captions/math totals parsed",
   wc.total.wordsInHeaders === 14 && wc.total.wordsInCaptions === 3 &&
   wc.total.mathInline === 14 && wc.total.mathDisplay === 2 && wc.total.floats === 1);
-check("per-section rows parsed (excluding _top_)", wc.sections.length === 4);
-check("section words parsed", wc.sections[0].title === "Introduction" && wc.sections[0].words === 40);
+check("per-section rows parsed, plus front matter", wc.sections.length === 5);
+check("_top_ surfaced as Front matter, listed first",
+  wc.sections[0].title === "Front matter" && wc.sections[0].words === 46);
+check("section words parsed", wc.sections[1].title === "Introduction" && wc.sections[1].words === 40);
 check("subsections indented as outline",
   wc.sections.some((s) => s.title === "  Umbrella sampling"));
 
