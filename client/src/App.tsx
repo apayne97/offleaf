@@ -47,6 +47,9 @@ interface DocTab {
   logs: LogEntry[];
   pdfUrl: string | null;
   jobId: string | null;
+  /** This document's own word count (texcount runs on source, not the PDF —
+   *  independent of whether it's been compiled yet). */
+  docCount: (WordCountResult & { engine: string }) | null;
 }
 
 export default function App() {
@@ -60,6 +63,7 @@ export default function App() {
   const status: Status = activeDoc?.status ?? "idle";
   const logs: LogEntry[] = activeDoc?.logs ?? [];
   const pdfUrl: string | null = activeDoc?.pdfUrl ?? null;
+  const docCount = activeDoc?.docCount ?? null;
   /** What the middle pane shows; the PDF stays on the right regardless. */
   const [leftView, setLeftView] = useState<"code" | "visual">("code");
   const [showReadAloud, setShowReadAloud] = useState(false);
@@ -69,7 +73,6 @@ export default function App() {
   const [openPath, setOpenPath] = useState("");
   const [openError, setOpenError] = useState("");
   const [projList, setProjList] = useState<ProjectsListing | null>(null);
-  const [docCount, setDocCount] = useState<(WordCountResult & { engine: string }) | null>(null);
   const [selCount, setSelCount] = useState<SelectionCountResult | null>(null);
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
   const [activeSeg, setActiveSeg] = useState<number | null>(null);
@@ -125,7 +128,15 @@ export default function App() {
       setProject(proj);
       setEngine(proj.engine);
       setTabs([
-        { file: proj.mainFile, label: baseNoExt(proj.mainFile), status: "idle", logs: [], pdfUrl: null, jobId: null },
+        {
+          file: proj.mainFile,
+          label: baseNoExt(proj.mainFile),
+          status: "idle",
+          logs: [],
+          pdfUrl: null,
+          jobId: null,
+          docCount: null,
+        },
       ]);
       setActiveTab(0);
       await openFile(proj.mainFile);
@@ -175,8 +186,10 @@ export default function App() {
       if (idx === activeTabRef.current && msg.result.errors.length === 0 && msg.result.warnings.length === 0) {
         setShowLogs(false);
       }
-      const main = projectRef.current?.mainFile;
-      if (main) refreshDocCount(main);
+      // Refresh word count for whichever document just finished compiling
+      // (not necessarily the active tab — a background tab can finish too).
+      const doneFile = tabsRef.current[idx]?.file;
+      if (doneFile) refreshDocCount(doneFile);
     }
   };
 
@@ -202,8 +215,13 @@ export default function App() {
     setSelCount(null);
   }
 
-  function refreshDocCount(mainFile: string) {
-    api.wordcountDoc(mainFile).then(setDocCount).catch(() => setDocCount(null));
+  /** Word count is per-document (independent of compilation) — refresh
+   *  whichever tab matches `file`, so a background tab's count doesn't
+   *  clobber the one you're currently looking at. */
+  function refreshDocCount(file: string) {
+    api.wordcountDoc(file)
+      .then((r) => setTabs((prev) => prev.map((t) => (t.file === file ? { ...t, docCount: r } : t))))
+      .catch(() => setTabs((prev) => prev.map((t) => (t.file === file ? { ...t, docCount: null } : t))));
   }
 
   const onEditorChange = (value: string) => {
@@ -213,8 +231,11 @@ export default function App() {
       if (activePath) {
         api.saveFile(activePath, value)
           .then(() => {
-            const main = projectRef.current?.mainFile;
-            if (main) refreshDocCount(main);
+            // Refresh the ACTIVE tab's count, not just activePath's own file:
+            // editing an \input'd subfile (e.g. abstract.tex) changes the
+            // enclosing document's total, not a count for abstract.tex itself.
+            const activeFile = tabsRef.current[activeTabRef.current]?.file;
+            if (activeFile) refreshDocCount(activeFile);
           })
           .catch(() => {});
       }
@@ -258,9 +279,11 @@ export default function App() {
   const addTab = (file: string) => {
     setTabs((prev) => [
       ...prev,
-      { file, label: baseNoExt(file), status: "idle" as Status, logs: [], pdfUrl: null, jobId: null },
+      { file, label: baseNoExt(file), status: "idle" as Status, logs: [], pdfUrl: null, jobId: null, docCount: null },
     ]);
     setActiveTab(tabs.length);
+    // Word count doesn't need a compile — texcount runs on source directly.
+    refreshDocCount(file);
   };
 
   const closeTab = (i: number) => {
@@ -515,7 +538,9 @@ export default function App() {
         {/* right-docked panels */}
         {(showReadAloud || showWordPanel) && (
           <aside className="rightdock">
-            {showWordPanel && <WordCountPanel result={docCount} onClose={() => setShowWordPanel(false)} />}
+            {showWordPanel && (
+              <WordCountPanel result={docCount} label={activeDoc?.label} onClose={() => setShowWordPanel(false)} />
+            )}
             {showReadAloud && (
               <ReadAloud
                 ref={readAloudRef}
@@ -612,7 +637,7 @@ export default function App() {
       {/* ---------------- status bar ---------------- */}
       <footer className="statusbar">
         <span className={`pill ${status}`}>{status}</span>
-        <WordCountBar doc={docCount} selection={selCount} />
+        <WordCountBar doc={docCount} selection={selCount} label={activeDoc?.label} />
         <div className="spacer" />
         <button className="link" onClick={() => setShowLogs((v) => !v)}>
           {errorCount ? `${errorCount} errors` : "log"}
