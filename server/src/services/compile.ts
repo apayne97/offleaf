@@ -16,6 +16,7 @@ import type {
   CompileRequest,
   CompileResult,
   CompileState,
+  LatexEngine,
   LogEntry,
   ServerMessage,
 } from "@offleaf/shared";
@@ -115,6 +116,11 @@ export class CompileService {
       }
     }
 
+    job.state = "running";
+    emit({ type: "compile:status", jobId: job.jobId, state: "running", projectId: job.projectId });
+
+    await precompileExternalDocuments(cwd, job, req.engine, emit);
+
     const args = [
       engineFlag(req.engine),
       ...LATEXMK_BASE_FLAGS,
@@ -122,9 +128,6 @@ export class CompileService {
       ...(req.shellEscape ? ["-shell-escape"] : []),
       job.mainFile,
     ];
-
-    job.state = "running";
-    emit({ type: "compile:status", jobId: job.jobId, state: "running", projectId: job.projectId });
 
     // Own process group so stop/timeout can kill latexmk AND its pdflatex/
     // bibtex children (killing just latexmk leaves the engine running).
@@ -205,6 +208,71 @@ export class CompileService {
     job.result = result;
     emit({ type: "compile:status", jobId: job.jobId, state: job.state, projectId: job.projectId });
     emit({ type: "compile:done", result, projectId: job.projectId });
+  }
+}
+
+const EXTERNALDOCUMENT_RE = /\\externaldocument(?:\[[^\]]*\])?\{([^}]+)\}/g;
+
+/**
+ * Multi-document papers (e.g. a main manuscript with `\externaldocument{si}`
+ * from the `xr-hyper` package) need the referenced document's .aux file to
+ * exist before the main file is compiled, so cross-references into it
+ * resolve instead of coming out as "??". latexmk only builds the file it's
+ * pointed at, so we scan the main file for `\externaldocument` and run one
+ * plain engine pass (matching how xr-hyper itself just needs a fresh .aux,
+ * not a full latexmk build) on each referenced document first, right in the
+ * project root where xr-hyper's search path will find the .aux.
+ */
+async function precompileExternalDocuments(
+  cwd: string,
+  job: Job,
+  engine: LatexEngine,
+  emit: Emit,
+): Promise<void> {
+  let src: string;
+  try {
+    src = fs.readFileSync(safeResolve(job.mainFile, job.projectId), "utf8");
+  } catch {
+    return;
+  }
+
+  const names = new Set<string>();
+  for (const m of src.matchAll(EXTERNALDOCUMENT_RE)) {
+    const name = m[1].trim().endsWith(".tex") ? m[1].trim() : `${m[1].trim()}.tex`;
+    if (name !== job.mainFile) names.add(name);
+  }
+
+  for (const name of names) {
+    let abs: string;
+    try {
+      abs = safeResolve(name, job.projectId);
+    } catch {
+      continue;
+    }
+    if (!fs.existsSync(abs)) continue;
+
+    emit({
+      type: "compile:log",
+      jobId: job.jobId,
+      entry: { severity: "info", message: `Pre-compiling ${name} (required by \\externaldocument)…` },
+      projectId: job.projectId,
+    });
+    try {
+      await execFileAsync(engine, ["-interaction=nonstopmode", "-file-line-error", name], {
+        cwd,
+        timeout: 60_000,
+      });
+    } catch {
+      emit({
+        type: "compile:log",
+        jobId: job.jobId,
+        entry: {
+          severity: "warning",
+          message: `Pre-compile of ${name} failed; cross-references into it may be unresolved.`,
+        },
+        projectId: job.projectId,
+      });
+    }
   }
 }
 
