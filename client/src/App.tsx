@@ -175,7 +175,10 @@ export default function App() {
                 ...t,
                 status: msg.result.state,
                 logs: [...msg.result.errors, ...msg.result.warnings],
-                jobId: null,
+                // jobId stays set after the compile finishes (not just while
+                // running) — it's how the Download button knows which build to
+                // export, and a later recompile overwrites it with the new job's
+                // id regardless.
                 pdfUrl: msg.result.pdfUrl ?? t.pdfUrl,
               }
             : t,
@@ -316,6 +319,14 @@ export default function App() {
     if (res.file !== activePath) await openFile(res.file).catch(() => {});
     // Allow the editor doc to update before scrolling.
     setTimeout(() => editorRef.current?.scrollToLine(res.line), 50);
+  };
+
+  /** Copies the active tab's compiled PDF next to its .tex source; returns the saved path. */
+  const exportPdf = async (): Promise<string> => {
+    const tab = tabs[activeTab];
+    if (!tab?.jobId) throw new Error("No compiled PDF to save yet");
+    const { path } = await api.exportPdf(tab.jobId, tab.file);
+    return path;
   };
 
   // ---- open-folder dialog ----
@@ -528,7 +539,13 @@ export default function App() {
                       to a tab with no PDF yet. Each tab gets its own
                       independent zoom/scroll state as a side effect, which
                       is arguably more correct than sharing one. */}
-                  <PdfView key={activeDoc?.file ?? "none"} ref={pdfRef} url={pdfUrl} onInverse={inverseSync} />
+                  <PdfView
+                    key={activeDoc?.file ?? "none"}
+                    ref={pdfRef}
+                    url={pdfUrl}
+                    onInverse={inverseSync}
+                    onExport={exportPdf}
+                  />
                 </div>
               }
             />

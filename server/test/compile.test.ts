@@ -15,7 +15,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.OFFLEAF_PROJECT = path.join(here, "fixture");
 
 // Register the fixture as the boot project (index.ts does this at startup).
-const { initDefaultProject } = await import("../src/config.js");
+const { initDefaultProject, safeResolve } = await import("../src/config.js");
 initDefaultProject();
 
 const { CompileService } = await import("../src/services/compile.js");
@@ -48,6 +48,18 @@ async function main() {
   } else {
     console.log("SKIP  synctex not produced by this TeX install");
   }
+
+  // Mirrors /api/pdf/export's logic: copy the build output next to the
+  // .tex source, confined to the project root via safeResolve.
+  console.log("\n--- pdf export (download-to-source-folder) ---");
+  const destRel = "paper.tex".replace(/\.tex$/i, ".pdf");
+  const destAbs = safeResolve(destRel);
+  if (fs.existsSync(destAbs)) fs.unlinkSync(destAbs);
+  fs.copyFileSync(pdfAbs, destAbs);
+  check("export lands next to the .tex source, same basename", fs.existsSync(destAbs));
+  check("exported PDF matches the compiled build output",
+    fs.readFileSync(destAbs).equals(fs.readFileSync(pdfAbs)));
+  fs.unlinkSync(destAbs);
 
   console.log("\n--- word count ---");
   const source = fs.readFileSync(path.join(process.env.OFFLEAF_PROJECT!, "paper.tex"), "utf8");

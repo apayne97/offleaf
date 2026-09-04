@@ -183,6 +183,30 @@ app.get("/api/pdf", async (req, reply) => {
   return reply.send(fs.createReadStream(abs));
 });
 
+/**
+ * "Download" for a local app means writing the PDF next to its .tex source,
+ * not the browser's Downloads folder — so this copies the compiled PDF into
+ * the project (via safeResolve, same as every other file write) rather than
+ * streaming bytes for the browser's own download attribute to save.
+ */
+app.post("/api/pdf/export", async (req, reply) => {
+  const { jobId, file } = req.body as { jobId?: string; file?: string };
+  const p = pidOf(req);
+  if (!jobId || !file) {
+    reply.code(400);
+    return { error: "Body must be { jobId, file: \"<doc>.tex\" }" };
+  }
+  const abs = compiler.pdfAbsFor(jobId, p);
+  if (!abs || !fs.existsSync(abs)) {
+    reply.code(404);
+    return { error: "No compiled PDF available" };
+  }
+  const destRel = file.replace(/\.tex$/i, ".pdf");
+  const destAbs = safeResolve(destRel, p);
+  await fsp.copyFile(abs, destAbs);
+  return { path: destRel };
+});
+
 // --------------------------------------------------------------------------
 // SyncTeX
 // --------------------------------------------------------------------------
