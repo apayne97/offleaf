@@ -22,3 +22,6 @@ dist/
 
 # Local tool/session config (machine-specific)
 .claude/
+
+# Compiled launcher app (build it yourself from deploy/OffLeaf.applescript)
+/OffLeaf.app
