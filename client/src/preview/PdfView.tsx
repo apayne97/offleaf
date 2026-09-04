@@ -23,15 +23,18 @@ interface PdfViewProps {
    * SyncTeX's convention: PDF points measured from the page's TOP-left.
    */
   onInverse?(page: number, x: number, y: number): void;
+  /** Copies the compiled PDF next to its .tex source; resolves to the saved project-relative path. */
+  onExport?(): Promise<string>;
 }
 
-const PdfView = forwardRef<PdfHandle, PdfViewProps>(function PdfView({ url, onInverse }, ref) {
+const PdfView = forwardRef<PdfHandle, PdfViewProps>(function PdfView({ url, onInverse, onExport }, ref) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const wrappers = useRef<HTMLDivElement[]>([]);
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1.25);
   const [error, setError] = useState<string | null>(null);
+  const [exportMsg, setExportMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const docRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const renderToken = useRef(0);
   const savedScroll = useRef(0);
@@ -184,6 +187,18 @@ const PdfView = forwardRef<PdfHandle, PdfViewProps>(function PdfView({ url, onIn
 
   const zoomLabel = useMemo(() => `${Math.round(scale * 100)}%`, [scale]);
 
+  const handleExport = async () => {
+    if (!onExport) return;
+    setExportMsg(null);
+    try {
+      const savedPath = await onExport();
+      setExportMsg({ text: `Saved to ${savedPath}` });
+    } catch (e) {
+      setExportMsg({ text: String((e as Error).message ?? e), error: true });
+    }
+    setTimeout(() => setExportMsg(null), 4000);
+  };
+
   return (
     <div className="pdfview">
       <div className="pdf-toolbar">
@@ -191,10 +206,17 @@ const PdfView = forwardRef<PdfHandle, PdfViewProps>(function PdfView({ url, onIn
         <span className="zoom">{zoomLabel}</span>
         <button onClick={() => setScale((s) => Math.min(3, s + 0.1))} title="Zoom in">+</button>
         <button onClick={fitWidth} title="Fit page width">Fit</button>
-        {url && (
-          <a className="pdf-download" href={url} download="output.pdf" title="Download the compiled PDF">
+        {url && onExport && (
+          <button
+            className="pdf-download"
+            onClick={() => void handleExport()}
+            title="Save the compiled PDF next to its .tex source"
+          >
             ⤓ Download
-          </a>
+          </button>
+        )}
+        {exportMsg && (
+          <span className={exportMsg.error ? "pdf-export-msg err" : "pdf-export-msg"}>{exportMsg.text}</span>
         )}
         <span className="muted pdf-hint">{numPages ? `${numPages} pages · ⌘/Ctrl+click = jump to source` : ""}</span>
       </div>

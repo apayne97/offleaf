@@ -113,6 +113,14 @@ export const api = {
 
   pdfUrl: (jobId: string): string => withP(`/api/pdf?jobId=${encodeURIComponent(jobId)}`),
 
+  /** Copies the compiled PDF next to `file` (its .tex source), same basename. */
+  exportPdf: (jobId: string, file: string): Promise<{ path: string }> =>
+    fetch("/api/pdf/export", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: bodyP({ jobId, file }),
+    }).then(json<{ path: string }>),
+
   /**
    * SyncTeX both directions take an optional `doc` — the target document's
    * basename without extension (e.g. "si_figures") — so a project with
