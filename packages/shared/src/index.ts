@@ -194,6 +194,21 @@ export interface ProjectsListing {
   recent: string[];
 }
 
+export interface FsBrowseEntry {
+  name: string;
+  /** True if this subfolder directly contains a .tex file (likely a project). */
+  hasTex: boolean;
+}
+
+export interface FsBrowseResult {
+  /** Absolute, resolved path of the directory being browsed. */
+  dir: string;
+  /** Absolute path one level up, or null if `dir` is the filesystem root. */
+  parent: string | null;
+  /** Subdirectories of `dir`, hidden (dotfile) folders excluded. */
+  entries: FsBrowseEntry[];
+}
+
 // ----------------------------------------------------------------------------
 // Constants
 // ----------------------------------------------------------------------------

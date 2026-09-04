@@ -22,6 +22,7 @@ import path from "node:path";
 import type {
   ClientMessage,
   CompileRequest,
+  FsBrowseResult,
   ProjectInfo,
   ProjectsListing,
   SelectionCountResult,
@@ -38,6 +39,7 @@ import {
   listProjects,
   recentProjects,
 } from "./config.js";
+import { browseDir } from "./services/browse.js";
 import * as files from "./services/files.js";
 import { CompileService } from "./services/compile.js";
 import { forward, inverse } from "./services/synctex.js";
@@ -121,6 +123,17 @@ app.post("/api/projects/open", async (req, reply) => {
   try {
     const { id, root } = registerProject(dir);
     return { id, root, name: path.basename(root) };
+  } catch (e) {
+    reply.code(400);
+    return { error: String((e as Error).message ?? e) };
+  }
+});
+
+/** Backs the Open dialog's folder picker: lists subdirectories of `dir` (default: home). */
+app.get("/api/fs/browse", async (req, reply): Promise<FsBrowseResult | { error: string }> => {
+  const { dir } = req.query as { dir?: string };
+  try {
+    return await browseDir(dir);
   } catch (e) {
     reply.code(400);
     return { error: String((e as Error).message ?? e) };

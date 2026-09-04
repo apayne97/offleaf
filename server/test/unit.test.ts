@@ -6,6 +6,8 @@
  * registry, latexmk log parsing, texcount output parsing, LaTeX stripping /
  * selection counting, and narration extraction.
  */
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +21,7 @@ initDefaultProject();
 const { parseLog } = await import("../src/services/compile.js");
 const { parseTexcount, stripLatex, selectionCount } = await import("../src/services/wordcount.js");
 const { extractNarration } = await import("../src/services/narration.js");
+const { browseDir } = await import("../src/services/browse.js");
 
 let failures = 0;
 function check(name: string, cond: boolean): void {
@@ -59,6 +62,36 @@ check("a file (not a dir) is rejected",
   throws(() => registerProject(path.join(fixtureRoot, "paper.tex"))));
 check("listProjects includes the boot project as default",
   listProjects().some((p) => p.isDefault && p.root === fixtureRoot));
+
+// ---------------------------------------------------------------------------
+console.log("--- folder picker (browseDir) ---");
+const browseRoot = fs.mkdtempSync(path.join(os.tmpdir(), "offleaf-browse-"));
+fs.mkdirSync(path.join(browseRoot, "with-tex"));
+fs.writeFileSync(path.join(browseRoot, "with-tex", "main.tex"), "");
+fs.mkdirSync(path.join(browseRoot, "without-tex"));
+fs.writeFileSync(path.join(browseRoot, "without-tex", "notes.txt"), "");
+fs.mkdirSync(path.join(browseRoot, ".hidden"));
+fs.writeFileSync(path.join(browseRoot, "not-a-folder.txt"), "");
+
+const browsed = await browseDir(browseRoot);
+check("resolves the requested directory", browsed.dir === browseRoot);
+check("reports the parent directory", browsed.parent === path.dirname(browseRoot));
+check("lists subdirectories, sorted", browsed.entries.map((e) => e.name).join(",") === "with-tex,without-tex");
+check("excludes hidden (dotfile) folders", !browsed.entries.some((e) => e.name === ".hidden"));
+check("excludes plain files", !browsed.entries.some((e) => e.name === "not-a-folder.txt"));
+check("flags a folder that directly contains a .tex file",
+  browsed.entries.find((e) => e.name === "with-tex")?.hasTex === true);
+check("does not flag a folder without .tex files",
+  browsed.entries.find((e) => e.name === "without-tex")?.hasTex === false);
+
+const browsedHome = await browseDir("~");
+check("expands ~ to the home directory", browsedHome.dir === os.homedir());
+
+const browsedRoot = await browseDir("/");
+check("the filesystem root has no parent", browsedRoot.parent === null);
+
+check("rejects a directory that doesn't exist",
+  await browseDir("/no/such/dir/anywhere").then(() => false, () => true));
 
 // ---------------------------------------------------------------------------
 console.log("--- latexmk/pdflatex log parsing ---");

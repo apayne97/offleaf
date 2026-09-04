@@ -273,6 +273,21 @@ button, select, input { font-family: inherit; font-size: 12px; }
 }
 .modal-item:hover { background: var(--bg-3); }
 
+.browse-bar { display: flex; align-items: center; gap: 6px; margin: 2px 0 6px; }
+.browse-bar .browse-path {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; color: var(--text-dim);
+}
+.browse-list {
+  max-height: 200px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px;
+}
+.browse-empty { padding: 6px; font-size: 12px; }
+.tex-flag {
+  margin-left: 6px; font-size: 10px; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 3px; padding: 0 4px;
+}
+
 /* ---------------- PDF text layer (selectable text over the canvas) ------- */
 .textLayer {
   position: absolute; inset: 0; overflow: hidden;

@@ -17,6 +17,7 @@ import type {
   SyncForwardResult,
   SyncInverseResult,
   NarrationDocument,
+  FsBrowseResult,
   ServerMessage,
 } from "@offleaf/shared";
 
@@ -62,6 +63,12 @@ export const api = {
       headers: JSON_HEADERS,
       body: JSON.stringify({ path }),
     }).then(json<{ id: string; root: string; name: string }>),
+
+  /** Lists subdirectories of `dir` for the Open dialog's folder picker; omit for home. */
+  browseFs: (dir?: string): Promise<FsBrowseResult> =>
+    fetch(dir ? `/api/fs/browse?dir=${encodeURIComponent(dir)}` : "/api/fs/browse").then(
+      json<FsBrowseResult>,
+    ),
 
   getFile: (path: string): Promise<FileContents> =>
     fetch(withP(`/api/file?path=${encodeURIComponent(path)}`)).then(json<FileContents>),

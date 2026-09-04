@@ -15,6 +15,7 @@ import type {
   ProjectsListing,
   SelectionCountResult,
   WordCountResult,
+  FsBrowseResult,
   ServerMessage,
 } from "@offleaf/shared";
 import { api, OffLeafSocket } from "./api";
@@ -73,6 +74,8 @@ export default function App() {
   const [openPath, setOpenPath] = useState("");
   const [openError, setOpenError] = useState("");
   const [projList, setProjList] = useState<ProjectsListing | null>(null);
+  const [browse, setBrowse] = useState<FsBrowseResult | null>(null);
+  const [browseError, setBrowseError] = useState("");
   const [selCount, setSelCount] = useState<SelectionCountResult | null>(null);
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
   const [activeSeg, setActiveSeg] = useState<number | null>(null);
@@ -323,6 +326,17 @@ export default function App() {
     setOpenError("");
     setShowOpen(true);
     api.listProjects().then(setProjList).catch(() => setProjList(null));
+    void loadBrowse(browse?.dir);
+  };
+
+  /** Load the folder picker's listing for `dir` (undefined = home directory). */
+  const loadBrowse = async (dir?: string) => {
+    setBrowseError("");
+    try {
+      setBrowse(await api.browseFs(dir));
+    } catch (e) {
+      setBrowseError(String((e as Error).message ?? e));
+    }
   };
 
   const openFolder = async (dir: string) => {
@@ -564,9 +578,53 @@ export default function App() {
               <button className="link" onClick={() => setShowOpen(false)}>close</button>
             </div>
             <p className="muted modal-hint">
-              Each folder opens in its own browser tab. Paths are on the machine running the
-              OffLeaf backend; <code>~</code> expands to your home directory.
+              Each folder opens in its own browser tab. Browse to it below, or type a path;{" "}
+              <code>~</code> expands to your home directory.
             </p>
+
+            <div className="browse-bar">
+              <button
+                className="link"
+                onClick={() => browse?.parent && void loadBrowse(browse.parent)}
+                disabled={!browse?.parent}
+                title="Go up one folder"
+              >
+                ⬆ Up
+              </button>
+              <button className="link" onClick={() => void loadBrowse()} title="Jump to your home folder">
+                🏠 Home
+              </button>
+              <span className="browse-path" title={browse?.dir}>{browse?.dir ?? "…"}</span>
+              <button
+                className="primary"
+                disabled={!browse}
+                onClick={() => browse && void openFolder(browse.dir)}
+                title="Open the folder shown above"
+              >
+                Open this folder
+              </button>
+            </div>
+            {browseError && <div className="modal-error">{browseError}</div>}
+            <div className="browse-list">
+              {browse && browse.entries.length === 0 && (
+                <div className="muted browse-empty">No subfolders here.</div>
+              )}
+              {browse?.entries
+                .filter((e) => !openPath.trim() || e.name.toLowerCase().includes(openPath.trim().toLowerCase()))
+                .map((e) => (
+                  <button
+                    key={e.name}
+                    className="modal-item"
+                    onClick={() => void loadBrowse(`${browse.dir.replace(/\/$/, "")}/${e.name}`)}
+                    title={e.hasTex ? "Contains .tex files" : undefined}
+                  >
+                    📁 {e.name}
+                    {e.hasTex && <span className="tex-flag">tex</span>}
+                  </button>
+                ))}
+            </div>
+
+            <div className="modal-sub">Or open by path</div>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -575,9 +633,8 @@ export default function App() {
             >
               <div className="modal-row">
                 <input
-                  autoFocus
                   type="text"
-                  placeholder="~/papers/my-manuscript"
+                  placeholder="~/papers/my-manuscript (also filters the list above)"
                   value={openPath}
                   onChange={(e) => setOpenPath(e.target.value)}
                 />
