@@ -16,6 +16,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+// registerProject() below writes to the recent-projects list — keep the
+// throwaway fixture dirs this file creates out of the real machine's
+// ~/.config/offleaf/recent.json.
+process.env.OFFLEAF_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "offleaf-config-"));
+
 const { documentCount, jsFallbackCount } = await import("../src/services/wordcount.js");
 const { registerProject, hasCommand } = await import("../src/config.js");
 

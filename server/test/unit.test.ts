@@ -13,8 +13,11 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.OFFLEAF_PROJECT = path.join(here, "fixture");
+// Registering projects below writes to the recent-projects list — keep that
+// off the real machine's ~/.config/offleaf/recent.json.
+process.env.OFFLEAF_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "offleaf-config-"));
 
-const { initDefaultProject, safeResolve, registerProject, projectRoot, listProjects } =
+const { initDefaultProject, safeResolve, registerProject, projectRoot, listProjects, resolveDefaultProject } =
   await import("../src/config.js");
 initDefaultProject();
 
@@ -62,6 +65,17 @@ check("a file (not a dir) is rejected",
   throws(() => registerProject(path.join(fixtureRoot, "paper.tex"))));
 check("listProjects includes the boot project as default",
   listProjects().some((p) => p.isDefault && p.root === fixtureRoot));
+
+// ---------------------------------------------------------------------------
+console.log("--- default-project priority (CLI arg > env > most recent > sample) ---");
+check("falls back to the bundled sample when nothing else is set",
+  resolveDefaultProject(undefined, undefined, []).endsWith(`${path.sep}sample`));
+check("falls back to the most recently opened project over the sample",
+  resolveDefaultProject(undefined, undefined, ["/recent/paper", "/older/paper"]) === "/recent/paper");
+check("OFFLEAF_PROJECT wins over the most recently opened project",
+  resolveDefaultProject(undefined, "/env/paper", ["/recent/paper"]) === "/env/paper");
+check("a CLI argument wins over OFFLEAF_PROJECT and recents",
+  resolveDefaultProject("/cli/paper", "/env/paper", ["/recent/paper"]) === "/cli/paper");
 
 // ---------------------------------------------------------------------------
 console.log("--- folder picker (browseDir) ---");

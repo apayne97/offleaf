@@ -27,8 +27,9 @@ export const BUILD_DIR = ".build";
 /** Port the local backend binds to (127.0.0.1 only). */
 export const PORT = Number(process.env.OFFLEAF_PORT ?? 3000);
 
-/** Where recent-project state lives (survives restarts). */
-const CONFIG_DIR = path.join(os.homedir(), ".config", "offleaf");
+/** Where recent-project state lives (survives restarts). Overridable so tests
+ *  don't pollute the real machine's recent-projects list. */
+const CONFIG_DIR = process.env.OFFLEAF_CONFIG_DIR ?? path.join(os.homedir(), ".config", "offleaf");
 const RECENT_FILE = path.join(CONFIG_DIR, "recent.json");
 
 // ---------------------------------------------------------------------------
@@ -93,9 +94,23 @@ function rememberRecent(absRoot: string): void {
   }
 }
 
-/** Register the boot project: CLI arg > OFFLEAF_PROJECT > bundled sample. */
+/**
+ * Priority chain for the boot project: CLI arg > OFFLEAF_PROJECT > most
+ * recently opened project > bundled sample. Pulled out as a pure function
+ * (recent defaults to the real recentProjects() list) so the priority order
+ * is unit-testable without touching argv/env/disk.
+ */
+export function resolveDefaultProject(
+  argv2: string | undefined,
+  envVar: string | undefined,
+  recent: string[] = recentProjects(),
+): string {
+  return argv2 ?? envVar ?? recent[0] ?? path.join(repoRoot, "sample");
+}
+
+/** Register the boot project (see resolveDefaultProject for the priority order). */
 export function initDefaultProject(): void {
-  const chosen = process.argv[2] ?? process.env.OFFLEAF_PROJECT ?? path.join(repoRoot, "sample");
+  const chosen = resolveDefaultProject(process.argv[2], process.env.OFFLEAF_PROJECT);
   const { id } = registerProject(chosen);
   defaultId = id;
 }

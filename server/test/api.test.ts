@@ -9,6 +9,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,9 @@ const fixture = path.join(here, "fixture");
 const sample = path.resolve(serverDir, "..", "sample");
 const PORT = 3799;
 const BASE = `http://127.0.0.1:${PORT}`;
+// POST /api/projects/open below writes to the recent-projects list — keep
+// that off the real machine's ~/.config/offleaf/recent.json.
+const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "offleaf-config-"));
 
 let failures = 0;
 function check(name: string, cond: boolean): void {
@@ -30,7 +34,7 @@ const child = spawn(
   ["tsx", "src/index.ts"],
   {
     cwd: serverDir,
-    env: { ...process.env, OFFLEAF_PORT: String(PORT), OFFLEAF_PROJECT: fixture },
+    env: { ...process.env, OFFLEAF_PORT: String(PORT), OFFLEAF_PROJECT: fixture, OFFLEAF_CONFIG_DIR: configDir },
     stdio: ["ignore", "pipe", "pipe"],
   },
 );
