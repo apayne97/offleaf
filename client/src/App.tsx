@@ -673,7 +673,12 @@ export default function App() {
               <>
                 <div className="modal-sub">Recent</div>
                 {projList.recent.map((r) => (
-                  <button key={r} className="modal-item" onClick={() => void openFolder(r)} title={r}>
+                  <button
+                    key={r}
+                    className="modal-item"
+                    onClick={() => void loadBrowse(r)}
+                    title={`Browse from ${r}`}
+                  >
                     🕘 <span className="muted">{r}</span>
                   </button>
                 ))}
