@@ -352,15 +352,21 @@ export default function App() {
 
   const openFolder = async (dir: string) => {
     setOpenError("");
-    // Open the tab synchronously (still inside the click's user gesture) —
-    // window.open after an await gets popup-blocked. Point it at the project
-    // once the backend has registered the folder.
-    const tab = window.open("", "_blank");
+    // Installed as a standalone app (Chrome's "Install page as app…"), there's
+    // no tab strip to hold a second project — and window.open() there breaks
+    // out into a regular browser tab instead of another app window, which is
+    // the opposite of what "installed as an app" is for. Just navigate the
+    // window we're already in. In a normal browser tab, open the tab
+    // synchronously (still inside the click's user gesture — window.open
+    // after an await gets popup-blocked) and point it at the project once the
+    // backend has registered the folder.
+    const standalone = window.matchMedia("(display-mode: standalone)").matches;
+    const tab = standalone ? null : window.open("", "_blank");
     try {
       const { id } = await api.openProject(dir);
       const url = `${location.origin}${location.pathname}?p=${encodeURIComponent(id)}`;
       if (tab) tab.location.href = url;
-      else window.location.href = url; // popup blocked anyway → reuse this tab
+      else window.location.href = url; // standalone, or the popup got blocked → reuse this window
       setShowOpen(false);
       setOpenPath("");
     } catch (e) {
