@@ -80,9 +80,10 @@ npm run dev          # starts the backend + Vite dev server together
 Then open the printed URL (the Vite dev server, http://localhost:5173). The dev server
 proxies `/api` and `/ws` to the backend on port 3000.
 
-**Point it at your paper** (full details in [USAGE.md](./USAGE.md)): the backend opens the
-bundled `sample/` project by default. Either use the **📂 Open…** toolbar button to open any
-folder in a new browser tab, or launch the backend against a folder directly:
+**Point it at your paper** (full details in [USAGE.md](./USAGE.md)): with no arguments the
+backend reopens whichever project you used most recently (bundled `sample/` the very first
+time). Either use the **📂 Open…** toolbar button to open any folder in a new browser tab, or
+launch the backend against a folder directly:
 
 ```bash
 # build the client once, then serve everything from the backend on :3000

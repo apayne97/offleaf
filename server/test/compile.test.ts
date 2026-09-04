@@ -9,10 +9,13 @@
  */
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.OFFLEAF_PROJECT = path.join(here, "fixture");
+// Keep the fixture out of the real machine's ~/.config/offleaf/recent.json.
+process.env.OFFLEAF_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "offleaf-config-"));
 
 // Register the fixture as the boot project (index.ts does this at startup).
 const { initDefaultProject, safeResolve } = await import("../src/config.js");

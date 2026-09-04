@@ -10,8 +10,10 @@ npm start
 # → open http://localhost:3000
 ```
 
-With no arguments this opens the bundled `sample/` manuscript. The server
-binds to 127.0.0.1 only — nothing is reachable from the network.
+With no arguments this reopens whatever project you had open most recently
+(the same list the 📂 Open… dialog's "Recent" section uses); with no history
+yet, it falls back to the bundled `sample/` manuscript. The server binds to
+127.0.0.1 only — nothing is reachable from the network.
 
 ## Working directories: opening YOUR paper
 
