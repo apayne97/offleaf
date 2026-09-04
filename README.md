@@ -97,6 +97,23 @@ also open in Overleaf or VS Code.
 
 ---
 
+## Running it as an app (optional, macOS)
+
+Two independent pieces, mix and match:
+
+- **A standalone window, no browser chrome.** The page ships a web manifest + icon
+  (`client/public/`), so it's installable like any other web app: open http://localhost:3000,
+  then Chrome/Edge → ⋮ menu → *Cast, save, and share* → *Install page as app…*. You get a Dock
+  icon and its own window, launchable from Spotlight/Raycast/Dock like a native app.
+- **A launcher you can double-click** instead of typing `npm start` in a terminal. It starts
+  the backend if it isn't already running, waits for it to come up, then opens it — see
+  `deploy/OffLeaf.applescript` (comment at the top has the one-line `osacompile` build command
+  and where to put the result). There's no always-on background service — the backend only
+  runs while you're actually using it (or until you quit/restart your Mac), unlike the always-on
+  setup used for the `todo` app.
+
+---
+
 ## How the requested features map to the code
 
 | You asked for | Where it lives |
