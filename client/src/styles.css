@@ -139,7 +139,10 @@ button, select, input { font-family: inherit; font-size: 12px; }
 .pdf-toolbar .zoom { min-width: 42px; text-align: center; }
 .pdf-hint { margin-left: auto; font-size: 11px; }
 .pdf-scroll { flex: 1; overflow: auto; padding: 16px; }
-.pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+/* width:max-content + min-width:100% keeps pages centered when narrow but lets the
+   box grow with a zoomed-in page; plain align-items:center overflows equally to the
+   left, where scrolling can't reach. */
+.pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; width: max-content; min-width: 100%; }
 .pdf-page { position: relative; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
 .pdf-empty { color: var(--text-dim); text-align: center; margin-top: 40px; }
 .pdf-marker { position: absolute; width: 220px; height: 18px; background: rgba(31,156,240,.28); border-left: 3px solid var(--accent-2); pointer-events: none; }
