@@ -88,6 +88,15 @@ export default function App() {
   const readAloudRef = useRef<ReadAloudHandle | null>(null);
   const socketRef = useRef<OffLeafSocket | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
+  /** Text of the active file as last loaded from / written to disk (to tell our own saves from outside edits). */
+  const syncedRef = useRef("");
+  const contentRef = useRef("");
+  /** Set when the file changed on disk while the editor has unsaved edits; autosave is paused until resolved. */
+  const [conflict, setConflict] = useState<string | null>(null);
+  const conflictRef = useRef<string | null>(null);
+  conflictRef.current = conflict;
+  /** Bumped when disk changes should trigger a recompile (runs after render so `content` is fresh). */
+  const [reloadTick, setReloadTick] = useState(0);
   const selTimer = useRef<number | undefined>(undefined);
   const keysRef = useRef(keys);
   keysRef.current = keys;
@@ -96,8 +105,11 @@ export default function App() {
   projectRef.current = project;
   const cursorRef = useRef(cursor);
   cursorRef.current = cursor;
+  contentRef.current = content;
   const tabsRef = useRef<DocTab[]>([]);
   tabsRef.current = tabs;
+  const activePathRef = useRef("");
+  activePathRef.current = activePath;
   const activeTabRef = useRef(0);
   activeTabRef.current = activeTab;
 
@@ -158,6 +170,10 @@ export default function App() {
 
   const handlerRef = useRef<(msg: ServerMessage) => void>(() => {});
   handlerRef.current = (msg: ServerMessage) => {
+    if (msg.type === "file:changed") {
+      void onDiskChange(msg.path);
+      return;
+    }
     if (msg.type !== "compile:status" && msg.type !== "compile:log" && msg.type !== "compile:done") return;
     // Every compile message carries its jobId; route it to whichever tab
     // started that job (it may not be the currently active one).
@@ -213,10 +229,65 @@ export default function App() {
     setKeys(harvestKeys(texts, bibs));
   }
 
+  /** A file changed on disk (another editor, Claude, or our own autosave echoing back). */
+  async function onDiskChange(path: string) {
+    if (path !== activePathRef.current) {
+      // Another file: refresh the tree and cite/label keys; recompile if it feeds the document.
+      const proj = await api.getProject().catch(() => null);
+      if (!proj) return;
+      setProject(proj);
+      void harvestProjectKeys(proj);
+      if (/\.(tex|bib)$/.test(path)) setReloadTick((n) => n + 1);
+      return;
+    }
+    const file = await api.getFile(path).catch(() => null);
+    if (!file || file.binary || path !== activePathRef.current) return;
+    const disk = file.content;
+    if (disk === syncedRef.current) return; // our own save, or nothing new
+    if (disk === contentRef.current) {
+      syncedRef.current = disk; // editor already has it
+      return;
+    }
+    if (contentRef.current === syncedRef.current) {
+      // Editor is clean: take the outside edit.
+      window.clearTimeout(saveTimer.current);
+      syncedRef.current = disk;
+      setContent(disk);
+      editorRef.current?.replaceDoc(disk);
+      setReloadTick((n) => n + 1);
+    } else {
+      window.clearTimeout(saveTimer.current); // pause autosave until the user chooses
+      setConflict(disk);
+    }
+  }
+
+  const resolveConflict = (keepMine: boolean) => {
+    const disk = conflictRef.current;
+    setConflict(null);
+    if (disk === null) return;
+    if (keepMine) {
+      // Mine wins: write it back over the outside edit.
+      syncedRef.current = contentRef.current;
+      api.saveFile(activePath, contentRef.current).catch(() => {});
+    } else {
+      syncedRef.current = disk;
+      setContent(disk);
+      editorRef.current?.replaceDoc(disk);
+      setReloadTick((n) => n + 1);
+    }
+  };
+
+  useEffect(() => {
+    if (reloadTick > 0) void recompile(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadTick]);
+
   async function openFile(path: string) {
     const file = await api.getFile(path);
     if (file.binary) return; // images/pdfs aren't opened in the text editor
     setActivePath(path);
+    syncedRef.current = file.content;
+    setConflict(null);
     setContent(file.content);
     setSelCount(null);
   }
@@ -233,8 +304,10 @@ export default function App() {
   const onEditorChange = (value: string) => {
     setContent(value);
     window.clearTimeout(saveTimer.current);
+    if (conflictRef.current !== null) return; // paused until the conflict is resolved
     saveTimer.current = window.setTimeout(() => {
       if (activePath) {
+        syncedRef.current = value; // set before the PUT so its watcher echo isn't mistaken for an outside edit
         api.saveFile(activePath, value)
           .then(() => {
             // Refresh the ACTIVE tab's count, not just activePath's own file:
@@ -262,7 +335,10 @@ export default function App() {
   const recompile = async (cleanBuild: boolean) => {
     const tab = tabs[activeTab];
     if (!project || !tab || tab.status === "running" || tab.status === "queued") return;
-    if (activePath) await api.saveFile(activePath, content).catch(() => {});
+    if (activePath && conflictRef.current === null) {
+      syncedRef.current = content;
+      await api.saveFile(activePath, content).catch(() => {});
+    }
     setTabs((prev) => prev.map((t, i) => (i === activeTab ? { ...t, logs: [], status: "queued" } : t)));
     setShowLogs(true);
     try {
@@ -507,6 +583,13 @@ export default function App() {
                     {activePath || "no file"}
                     {leftView === "visual" && <span className="muted"> · visual (read-only — switch to Code to edit)</span>}
                   </div>
+                  {conflict !== null && (
+                    <div className="conflict-banner">
+                      <span>{activePath} changed on disk while you have unsaved edits.</span>
+                      <button onClick={() => resolveConflict(false)}>Load disk version</button>
+                      <button onClick={() => resolveConflict(true)}>Keep mine</button>
+                    </div>
+                  )}
                   {/* Both stay mounted so the editor keeps cursor/undo state
                       while the visual pane is showing. */}
                   <div className={leftView === "code" ? "fill" : "fill hidden"}>

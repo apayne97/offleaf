@@ -323,3 +323,14 @@ button, select, input { font-family: inherit; font-size: 12px; }
 .outline-row.depth-1 { padding-left: 24px; }
 .outline-row.depth-2 { padding-left: 38px; font-size: 11px; color: var(--text-dim); }
 .outline-empty { padding: 4px 10px; font-size: 12px; }
+
+.conflict-banner {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: #5a4a14;
+  color: #fff;
+}
+.conflict-banner span { flex: 1; }

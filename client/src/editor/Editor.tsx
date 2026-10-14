@@ -40,6 +40,8 @@ export interface EditorHandle {
    * (used by Read-Aloud follow-along so it never interrupts typing). */
   revealLine(line: number): void;
   getSelectionText(): string;
+  /** Replace the whole document (external edit on disk), keeping the cursor line roughly in place. */
+  replaceDoc(text: string): void;
 }
 
 export interface EditorDiagnostic {
@@ -93,6 +95,15 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(props, ref)
   const diagnosticsRef = useRef<EditorDiagnostic[]>([]);
 
   useImperativeHandle(ref, () => ({
+    replaceDoc(text: string) {
+      const view = viewRef.current;
+      if (!view) return;
+      const anchor = Math.min(view.state.selection.main.anchor, text.length);
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: text },
+        selection: { anchor },
+      });
+    },
     scrollToLine(line: number) {
       const view = viewRef.current;
       if (!view) return;

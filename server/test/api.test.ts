@@ -155,6 +155,35 @@ async function main() {
     await fetch(`${BASE}/api/tts/extract?path=paper.tex`)
   ).json()) as { segments: { kind: string }[] };
   check("TTS extraction returns segments", narration.segments.length > 0);
+
+  // --- external edits are announced over the websocket -------------------------
+  // (GET /api/project above already started the watcher for the boot project.)
+  const events: { type: string; path?: string }[] = [];
+  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
+  await new Promise<void>((resolve, reject) => {
+    ws.onopen = () => resolve();
+    ws.onerror = () => reject(new Error("websocket failed to open"));
+  });
+  ws.onmessage = (ev) => events.push(JSON.parse(String(ev.data)));
+  const watchedRel = "watch-test-scratch.tex";
+  const watchedAbs = path.join(fixture, watchedRel);
+  const sawChange = async (): Promise<boolean> => {
+    for (let i = 0; i < 40; i++) {
+      if (events.some((e) => e.type === "file:changed" && e.path === watchedRel)) return true;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
+  };
+  fs.writeFileSync(watchedAbs, "% written outside the browser\n");
+  check("outside write broadcasts file:changed", await sawChange());
+  events.length = 0;
+  fs.mkdirSync(path.join(fixture, ".build"), { recursive: true });
+  fs.writeFileSync(path.join(fixture, ".build", "x.aux"), "ignored");
+  await new Promise((r) => setTimeout(r, 500));
+  check("build-dir writes are not announced", !events.some((e) => e.type === "file:changed"));
+  fs.rmSync(watchedAbs, { force: true });
+  fs.rmSync(path.join(fixture, ".build"), { recursive: true, force: true });
+  ws.close();
 }
 
 main()
