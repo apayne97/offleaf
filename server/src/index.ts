@@ -46,12 +46,14 @@ import { forward, inverse } from "./services/synctex.js";
 import { documentCount, selectionCount } from "./services/wordcount.js";
 import { extractNarration } from "./services/narration.js";
 import { WsHub } from "./ws.js";
+import { ProjectWatcher } from "./services/watcher.js";
 
 initDefaultProject();
 
 const app = Fastify({ logger: false });
 const hub = new WsHub();
 const compiler = new CompileService();
+const watcher = new ProjectWatcher((msg) => hub.broadcast(msg));
 
 await app.register(fastifyWebsocket);
 
@@ -96,6 +98,7 @@ async function detectMainFile(projectId: string): Promise<string> {
 
 app.get("/api/project", async (req): Promise<ProjectInfo> => {
   const p = pidOf(req);
+  watcher.ensure(p);
   const tree = await files.listTree(p);
   const documents = await listTexDocuments(p);
   return {
